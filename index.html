@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Popcornhub | Dashboard</title>
 
-    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/code-andrewy/Games1232/refs/heads/main/image-removebg-preview%20(32).png">
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/code-andrewy/Games1232/main/image-removebg-preview%20(32).png">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
@@ -383,29 +383,82 @@
         searchEl.addEventListener('input', () => {
             const q = searchEl.value.toLowerCase();
             Array.from(hubGrid.children).forEach(card => {
-                const text = card.querySelector('h3').innerText.toLowerCase();
+                const h = card.querySelector('h3');
+                const text = h ? h.innerText.toLowerCase() : '';
                 card.style.display = text.includes(q) ? 'flex' : 'none';
             });
         });
 
-        // Fixed Navigation Logic
-        function nav(url) {
-            // Using window.open for external links or simple redirection for reliability
-            window.open(url, '_blank');
+        /* FETCH + OPEN IN about:blank (reusable) */
+        async function openFetched(url, errorMsg) {
+            try {
+                const r = await fetch(url, { cache: 'no-store' });
+                if (!r.ok) throw new Error('fetch failed');
+
+                let html = await r.text();
+
+                // build base href from url so relative assets resolve
+                const u = new URL(url);
+                const parts = u.pathname.split('/');
+                parts.pop(); // remove filename
+                const base = u.origin + parts.join('/') + '/';
+
+                if (/<head[^>]*>/i.test(html)) {
+                    html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${base}">`);
+                } else {
+                    html = `<head><base href="${base}"></head>` + html;
+                }
+
+                const w = window.open('about:blank', '_blank');
+                if (!w) return alert('Popup blocked — allow popups for this site.');
+
+                try { w.opener = null; } catch (e) { /* ignore */ }
+
+                w.document.open();
+                w.document.write(html);
+                w.document.close();
+            } catch (err) {
+                // final fallback: try to open the raw URL directly
+                try {
+                    const f = window.open(url, '_blank');
+                    if (!f) alert(errorMsg + ' — Popup blocked.');
+                } catch (e) {
+                    alert(errorMsg);
+                }
+            }
         }
 
-        // Active Listeners
-        document.getElementById('cardMusic').onclick = () => nav('https://raw.githubusercontent.com/code-andrewy/jumpman64beta/refs/heads/main/musicpop.html');
-        document.getElementById('cardMusic2').onclick = () => nav('https://raw.githubusercontent.com/code-andrewy/jumpman64beta/refs/heads/main/bittyt-fixed.html');
-        document.getElementById('cardRadio').onclick = () => nav('https://raw.githubusercontent.com/code-andrewy/jumpman64beta/refs/heads/main/radio.html');
-        document.getElementById('chatBtn').onclick = () => nav('https://raw.githubusercontent.com/code-andrewy/jumpman64beta/refs/heads/main/stoplookatmycode.html');
+        // Hook up card actions (fixed raw.githubusercontent URLs)
+        document.getElementById('cardMusic').onclick = () => openFetched(
+            'https://raw.githubusercontent.com/code-andrewy/jumpman64beta/main/musicpop.html',
+            'Failed to load Music Hub'
+        );
 
-        // Weather Logic
+        document.getElementById('cardMusic2').onclick = () => openFetched(
+            'https://raw.githubusercontent.com/code-andrewy/jumpman64beta/main/bittyt-fixed.html',
+            'Failed to load YouTube'
+        );
+
+        document.getElementById('cardRadio').onclick = () => openFetched(
+            'https://raw.githubusercontent.com/code-andrewy/jumpman64beta/main/radio.html',
+            'Failed to load Radio'
+        );
+
+        document.getElementById('chatBtn').onclick = () => openFetched(
+            'https://raw.githubusercontent.com/code-andrewy/jumpman64beta/main/stoplookatmycode.html',
+            'Failed to load Chat'
+        );
+
+        // Weather Logic (Open-Meteo)
         async function updateWeather() {
             try {
                 const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.00&current_weather=true&temperature_unit=fahrenheit`);
                 const data = await res.json();
-                weatherEl.textContent = `${Math.round(data.current_weather.temperature)}°F`;
+                if (data && data.current_weather) {
+                    weatherEl.textContent = `${Math.round(data.current_weather.temperature)}°F`;
+                } else {
+                    weatherEl.textContent = 'N/A';
+                }
             } catch (e) {
                 weatherEl.textContent = "Offline";
             }
